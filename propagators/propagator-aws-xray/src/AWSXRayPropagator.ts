@@ -28,6 +28,7 @@ import {
   INVALID_TRACEID,
   INVALID_SPANID,
   INVALID_SPAN_CONTEXT,
+  propagation,
 } from '@opentelemetry/api';
 
 export const AWSXRAY_TRACE_ID_HEADER = 'x-amzn-trace-id';
@@ -73,12 +74,16 @@ export class AWSXRayPropagator implements TextMapPropagator {
         : NOT_SAMPLED;
     // TODO: Add OT trace state to the X-Ray trace header
 
+    // inspect baggage from context
+    const baggage = propagation.getBaggage(context);
+
     const traceHeader = `Root=1-${timestamp}-${randomNumber};Parent=${parentId};Sampled=${samplingFlag}`;
+    
     setter.set(carrier, AWSXRAY_TRACE_ID_HEADER, traceHeader);
   }
 
   extract(context: Context, carrier: unknown, getter: TextMapGetter): Context {
-    const spanContext = this.getSpanContextFromHeader(carrier, getter);
+    const spanContext = this.getSpanContextFromHeader(carrier, getter, context);
     if (!isSpanContextValid(spanContext)) return context;
 
     return trace.setSpan(context, trace.wrapSpanContext(spanContext));
@@ -90,7 +95,8 @@ export class AWSXRayPropagator implements TextMapPropagator {
 
   private getSpanContextFromHeader(
     carrier: unknown,
-    getter: TextMapGetter
+    getter: TextMapGetter,
+    context: Context
   ): SpanContext {
     const headerKeys = getter.keys(carrier);
     const relevantHeaderKey = headerKeys.find(e => {
@@ -107,6 +113,8 @@ export class AWSXRayPropagator implements TextMapPropagator {
     if (!traceHeader || typeof traceHeader !== 'string') {
       return INVALID_SPAN_CONTEXT;
     }
+
+    const baggage = propagation.getBaggage(context);
 
     let pos = 0;
     let trimmedPart: string;

@@ -1,19 +1,20 @@
 /*instrumentation.ts*/
 import { NodeSDK } from '@opentelemetry/sdk-node';
 import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
-import {
-  PeriodicExportingMetricReader,
-  ConsoleMetricExporter,
-} from '@opentelemetry/sdk-metrics';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
+import { AWSXRayPropagator } from '@opentelemetry/propagator-aws-xray';
+
+import { CompositePropagator, W3CBaggagePropagator, W3CTraceContextPropagator } from '@opentelemetry/core';
 
 const sdk = new NodeSDK({
     serviceName: 'instrumentation-test-service',
-    traceExporter: new OTLPTraceExporter({
-        url: `https://xray.${process.env.AWS_REGION || 'us-west-2'}.amazonaws.com/v1/traces`
-    }),
-    metricReader: new PeriodicExportingMetricReader({
-        exporter: new ConsoleMetricExporter(),
+    traceExporter: new OTLPTraceExporter(),
+    textMapPropagator: new CompositePropagator({
+        propagators: [
+            new W3CBaggagePropagator(),
+            new W3CTraceContextPropagator(),
+            new AWSXRayPropagator()
+        ]
     }),
     instrumentations: [getNodeAutoInstrumentations()],
 });
