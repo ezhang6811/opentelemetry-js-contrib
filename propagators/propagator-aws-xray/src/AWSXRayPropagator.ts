@@ -27,7 +27,7 @@ import {
   isValidTraceId,
   INVALID_TRACEID,
   INVALID_SPANID,
-  INVALID_SPAN_CONTEXT,
+  // INVALID_SPAN_CONTEXT,
   propagation,
   Baggage,
 } from '@opentelemetry/api';
@@ -53,6 +53,9 @@ const NOT_SAMPLED = '0';
 
 const LINEAGE_KEY = "Lineage";
 const LINEAGE_DELIMITER = ":";
+const LINEAGE_HASH_LENGTH = 8;
+const LINEAGE_MAX_REQUEST_COUNTER = 255;
+const LINEAGE_MAX_LOOP_COUNTER = 32767;
 
 /**
  * Implementation of the AWS X-Ray Trace Header propagation protocol. See <a href=
@@ -64,8 +67,6 @@ const LINEAGE_DELIMITER = ":";
  */
 export class AWSXRayPropagator implements TextMapPropagator {
   inject(context: Context, carrier: unknown, setter: TextMapSetter) {
-    debugger;
-    console.log('injecting');
     const spanContext = trace.getSpan(context)?.spanContext();
     if (!spanContext || !isSpanContextValid(spanContext)) return;
 
@@ -108,8 +109,6 @@ export class AWSXRayPropagator implements TextMapPropagator {
   }
 
   extract(context: Context, carrier: unknown, getter: TextMapGetter): Context {
-    debugger;
-    console.log('extracting');
     return this.getContextFromHeader(context, carrier, getter);
   }
 
@@ -166,7 +165,9 @@ export class AWSXRayPropagator implements TextMapPropagator {
       } else if (trimmedPart.startsWith(SAMPLED_FLAG_KEY)) {
         parsedTraceFlags = AWSXRayPropagator._parseTraceFlag(value);
       } else if (trimmedPart.startsWith(LINEAGE_KEY)) {
-        baggage = baggage.setEntry(LINEAGE_KEY, {value});
+        if (AWSXRayPropagator._isValidLineageV2Header(value)) {
+          baggage = baggage.setEntry(LINEAGE_KEY, {value});
+        }
       }
     }
     if (parsedTraceFlags === null) {
@@ -227,6 +228,23 @@ export class AWSXRayPropagator implements TextMapPropagator {
 
   private static _parseSpanId(xrayParentId: string): string {
     return isValidSpanId(xrayParentId) ? xrayParentId : INVALID_SPANID;
+  }
+
+  private static _isValidLineageV2Header(xrayLineageHeader: string): boolean {
+    const lineageSubstrings = xrayLineageHeader.split(LINEAGE_DELIMITER);
+    if (lineageSubstrings.length != 3) {
+      return false;
+    }
+
+    const requestCounter = parseInt(lineageSubstrings[0]);
+    const hashedResourceId = lineageSubstrings[1];
+    const loopCounter = parseInt(lineageSubstrings[2]);
+  
+    const isValidKey = hashedResourceId.length == LINEAGE_HASH_LENGTH && !!hashedResourceId.match(/^[0-9a-fA-F]+$/);
+    const isValidRequestCounter = requestCounter >= 0 && requestCounter <= LINEAGE_MAX_REQUEST_COUNTER;
+    const isValidLoopCounter = loopCounter >= 0 && loopCounter <= LINEAGE_MAX_LOOP_COUNTER;
+
+    return isValidKey && isValidRequestCounter && isValidLoopCounter;
   }
 
   private static _parseTraceFlag(xraySampledFlag: string): TraceFlags | null {
