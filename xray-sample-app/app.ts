@@ -16,7 +16,7 @@ app.get('/invoke-lambda', async (req, res) => {
   
   try {
       const command = new InvokeCommand({
-        FunctionName: 'instrumentation-test-function',
+        FunctionName: 'test-function-2',
         Payload: JSON.stringify({
           message: 'Hello from the caller service'
         })
