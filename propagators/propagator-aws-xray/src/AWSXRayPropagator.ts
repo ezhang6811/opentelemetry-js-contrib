@@ -166,7 +166,7 @@ export class AWSXRayPropagator implements TextMapPropagator {
         parsedTraceFlags = AWSXRayPropagator._parseTraceFlag(value);
       } else if (trimmedPart.startsWith(LINEAGE_KEY)) {
         if (AWSXRayPropagator._isValidLineageV2Header(value)) {
-          baggage = baggage.setEntry(LINEAGE_KEY, {value});
+          baggage = baggage.setEntry(LINEAGE_KEY, {value: decodeURIComponent(value)});
         }
       }
     }
