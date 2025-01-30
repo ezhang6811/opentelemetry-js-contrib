@@ -12,8 +12,8 @@ const sdk = new NodeSDK({
     textMapPropagator: new CompositePropagator({
         propagators: [
             new W3CBaggagePropagator(),
+            new AWSXRayPropagator(),
             new W3CTraceContextPropagator(),
-            new AWSXRayPropagator()
         ]
     }),
     instrumentations: [getNodeAutoInstrumentations()],
